@@ -221,15 +221,28 @@ async function registerSip(settings, statusEl) {
 
 function initDialpad() {
   const dialInput = document.getElementById('dial-number');
+  const backspaceBtn = document.getElementById('dial-backspace');
+
+  const updateBackspaceVisibility = () => {
+    backspaceBtn.classList.toggle('hidden', dialInput.value.length === 0);
+  };
+
   document.querySelectorAll('.key').forEach((key) => {
     key.addEventListener('click', () => {
       if (activeSession) {
         sendDtmf(key.dataset.key);
       } else {
         dialInput.value += key.dataset.key;
+        updateBackspaceVisibility();
       }
     });
   });
+
+  backspaceBtn.addEventListener('click', () => {
+    dialInput.value = dialInput.value.slice(0, -1);
+    updateBackspaceVisibility();
+  });
+  dialInput.addEventListener('input', updateBackspaceVisibility);
 
   document.getElementById('call-btn').addEventListener('click', () => {
     const number = dialInput.value.trim();
@@ -393,6 +406,7 @@ function showCallUI(mode, remote) {
   }
   if (mode === 'idle') {
     document.getElementById('dial-number').value = '';
+    document.getElementById('dial-backspace').classList.add('hidden');
     document.getElementById('mute-btn').classList.remove('on');
     document.getElementById('hold-btn').classList.remove('on');
   }
@@ -413,6 +427,12 @@ function initMessaging() {
   document.getElementById('new-convo-btn').addEventListener('click', () => {
     const number = prompt('Enter phone number in E.164 format (e.g. +15551234567):');
     if (number) openConversation(number.trim());
+  });
+
+  document.getElementById('back-to-conversations').addEventListener('click', () => {
+    currentConversation = null;
+    document.querySelector('.messages-layout').classList.remove('thread-open');
+    renderConversationList();
   });
 
   document.getElementById('compose-form').addEventListener('submit', async (e) => {
@@ -459,8 +479,9 @@ function renderConversationList() {
 
 async function openConversation(number) {
   currentConversation = number;
-  document.getElementById('conversation-title').textContent = number;
+  document.getElementById('conversation-title-text').textContent = number;
   document.getElementById('compose-to').classList.add('hidden');
+  document.querySelector('.messages-layout').classList.add('thread-open');
   renderConversationList();
 
   const res = await fetch(`/api/messages/${encodeURIComponent(number)}`);

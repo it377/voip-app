@@ -11,6 +11,9 @@
   <!-- Login screen -->
   <div id="login-screen" class="screen hidden">
     <form id="login-form" class="login-card">
+      <div class="login-icon">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" fill="currentColor"/></svg>
+      </div>
       <h1>UCM / Telnyx</h1>
       <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" autofocus />
       <button type="submit">Sign in</button>
@@ -22,12 +25,7 @@
   <div id="app" class="screen hidden">
     <header class="topbar">
       <div class="brand">UCM / Telnyx</div>
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="phone">Phone</button>
-        <button class="tab-btn" data-tab="messages">Messages</button>
-        <button class="tab-btn" data-tab="settings">Settings</button>
-      </div>
-      <button id="logout-btn" class="ghost-btn">Log out</button>
+      <button id="logout-btn" class="ghost-btn small">Log out</button>
     </header>
 
     <!-- Phone tab -->
@@ -38,41 +36,75 @@
       </div>
 
       <div id="call-idle" class="phone-card">
-        <input id="dial-number" type="tel" placeholder="Enter number" inputmode="tel" />
-        <div class="keypad">
-          <button class="key" data-key="1">1</button>
-          <button class="key" data-key="2">2</button>
-          <button class="key" data-key="3">3</button>
-          <button class="key" data-key="4">4</button>
-          <button class="key" data-key="5">5</button>
-          <button class="key" data-key="6">6</button>
-          <button class="key" data-key="7">7</button>
-          <button class="key" data-key="8">8</button>
-          <button class="key" data-key="9">9</button>
-          <button class="key" data-key="*">*</button>
-          <button class="key" data-key="0">0</button>
-          <button class="key" data-key="#">#</button>
+        <div class="dial-display">
+          <input id="dial-number" type="tel" placeholder="Enter number" inputmode="tel" />
+          <button id="dial-backspace" class="backspace-btn hidden" aria-label="Delete">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M8.5 5h10A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-10a1.5 1.5 0 0 1-1.2-.6L2.7 13a1.5 1.5 0 0 1 0-1.9l4.6-5.5c.3-.4.7-.6 1.2-.6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9.5l5 5m0-5l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
         </div>
-        <button id="call-btn" class="call-btn dial">Call</button>
+        <div class="keypad">
+          <button class="key" data-key="1"><span class="key-digit">1</span></button>
+          <button class="key" data-key="2"><span class="key-digit">2</span><span class="key-letters">ABC</span></button>
+          <button class="key" data-key="3"><span class="key-digit">3</span><span class="key-letters">DEF</span></button>
+          <button class="key" data-key="4"><span class="key-digit">4</span><span class="key-letters">GHI</span></button>
+          <button class="key" data-key="5"><span class="key-digit">5</span><span class="key-letters">JKL</span></button>
+          <button class="key" data-key="6"><span class="key-digit">6</span><span class="key-letters">MNO</span></button>
+          <button class="key" data-key="7"><span class="key-digit">7</span><span class="key-letters">PQRS</span></button>
+          <button class="key" data-key="8"><span class="key-digit">8</span><span class="key-letters">TUV</span></button>
+          <button class="key" data-key="9"><span class="key-digit">9</span><span class="key-letters">WXYZ</span></button>
+          <button class="key" data-key="*"><span class="key-digit">*</span></button>
+          <button class="key" data-key="0"><span class="key-digit">0</span><span class="key-letters">+</span></button>
+          <button class="key" data-key="#"><span class="key-digit">#</span></button>
+        </div>
+        <button id="call-btn" class="round-btn call" aria-label="Call">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" fill="currentColor"/></svg>
+        </button>
       </div>
 
-      <div id="call-active" class="phone-card hidden">
+      <div id="call-active" class="phone-card call-screen hidden">
+        <div class="call-avatar">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z" fill="currentColor"/><path d="M4 20c0-3.9 3.6-7 8-7s8 3.1 8 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </div>
         <div id="call-remote" class="call-remote">—</div>
         <div id="call-timer" class="call-timer">00:00</div>
         <div class="call-controls">
-          <button id="mute-btn" class="ctrl-btn">Mute</button>
-          <button id="hold-btn" class="ctrl-btn">Hold</button>
-          <button id="dtmf-btn" class="ctrl-btn">Keypad</button>
+          <button id="mute-btn" class="ctrl-btn">
+            <span class="ctrl-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" stroke="currentColor" stroke-width="1.6"/><path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <span class="ctrl-label">Mute</span>
+          </button>
+          <button id="hold-btn" class="ctrl-btn">
+            <span class="ctrl-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M8 6v12M16 6v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <span class="ctrl-label">Hold</span>
+          </button>
+          <button id="dtmf-btn" class="ctrl-btn">
+            <span class="ctrl-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 9h.01M12 9h.01M16 9h.01M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="ctrl-label">Keypad</span>
+          </button>
         </div>
-        <button id="hangup-btn" class="call-btn hangup">Hang up</button>
+        <button id="hangup-btn" class="round-btn hangup" aria-label="Hang up">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" fill="currentColor"/></svg>
+        </button>
       </div>
 
-      <div id="call-incoming" class="phone-card hidden">
+      <div id="call-incoming" class="phone-card call-screen hidden">
+        <div class="call-avatar pulse">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z" fill="currentColor"/><path d="M4 20c0-3.9 3.6-7 8-7s8 3.1 8 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </div>
         <div class="call-remote">Incoming call</div>
         <div id="incoming-from" class="call-remote-sub">—</div>
         <div class="incoming-actions">
-          <button id="answer-btn" class="call-btn dial">Answer</button>
-          <button id="reject-btn" class="call-btn hangup">Decline</button>
+          <div class="incoming-action">
+            <button id="reject-btn" class="round-btn hangup" aria-label="Decline">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" fill="currentColor"/></svg>
+            </button>
+            <span>Decline</span>
+          </div>
+          <div class="incoming-action">
+            <button id="answer-btn" class="round-btn call" aria-label="Answer">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" fill="currentColor"/></svg>
+            </button>
+            <span>Answer</span>
+          </div>
         </div>
       </div>
 
@@ -89,7 +121,12 @@
           <div id="conversations" class="conversations"></div>
         </aside>
         <div class="conversation-view">
-          <div id="conversation-title" class="conversation-title">Select a conversation</div>
+          <div class="conversation-title">
+            <button id="back-to-conversations" class="back-btn" aria-label="Back">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span id="conversation-title-text">Select a conversation</span>
+          </div>
           <div id="conversation-messages" class="conversation-messages"></div>
           <form id="compose-form" class="compose-form">
             <input id="compose-to" type="tel" placeholder="To (E.164, e.g. +15551234567)" class="hidden" />
@@ -126,6 +163,22 @@
         <p id="sip-settings-status" class="hint"></p>
       </form>
     </section>
+
+    <!-- Bottom tab bar -->
+    <nav class="bottom-nav">
+      <button class="tab-btn active" data-tab="phone">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1L6.6 10.8z" fill="currentColor"/></svg>
+        <span>Phone</span>
+      </button>
+      <button class="tab-btn" data-tab="messages">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.4 3.3A.5.5 0 0 1 3.8 20V6a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span>Messages</span>
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke="currentColor" stroke-width="1.6"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V19a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        <span>Settings</span>
+      </button>
+    </nav>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sip.js@0.21.2/dist/sip.min.js"></script>

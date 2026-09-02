@@ -11,7 +11,7 @@
   --radius: 14px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body {
   margin: 0;
@@ -23,6 +23,7 @@ body {
 }
 
 .hidden { display: none !important; }
+svg { width: 100%; height: 100%; display: block; }
 
 /* ---- Login ---- */
 
@@ -41,7 +42,18 @@ body {
   width: min(90vw, 320px);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 12px;
+}
+
+.login-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  color: white;
+  padding: 15px;
+  margin-bottom: 4px;
 }
 
 .login-card h1 {
@@ -50,7 +62,9 @@ body {
   text-align: center;
 }
 
-/* ---- Layout ---- */
+.login-card input, .login-card button { width: 100%; }
+
+/* ---- App shell ---- */
 
 #app {
   height: 100vh;
@@ -61,35 +75,15 @@ body {
 .topbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  padding: 10px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
   flex-shrink: 0;
 }
 
 .brand { font-weight: 700; }
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  flex: 1;
-}
-
-.tab-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  padding: 8px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.tab-btn.active {
-  background: var(--panel-2);
-  color: var(--text);
-}
 
 .tab-panel {
   display: none;
@@ -99,6 +93,33 @@ body {
 }
 
 .tab-panel.active { display: flex; flex-direction: column; }
+
+/* Bottom tab bar, phone-app style */
+
+.bottom-nav {
+  display: flex;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 8px 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.tab-btn svg { width: 22px; height: 22px; }
+.tab-btn.active { color: var(--accent); }
 
 /* ---- Buttons / inputs ---- */
 
@@ -121,6 +142,8 @@ button {
   border: none;
 }
 
+button:active { transform: scale(0.96); }
+
 .ghost-btn {
   background: transparent;
   border: 1px solid var(--border);
@@ -128,14 +151,15 @@ button {
   padding: 8px 14px;
 }
 
-.ghost-btn.small { padding: 4px 10px; font-size: 13px; }
+.ghost-btn.small { padding: 6px 12px; font-size: 13px; }
 
 /* ---- Phone tab ---- */
 
 #tab-phone {
   align-items: center;
-  padding: 24px 16px;
-  gap: 16px;
+  justify-content: space-between;
+  padding: 20px 16px;
+  gap: 12px;
   overflow-y: auto;
 }
 
@@ -158,86 +182,185 @@ button {
 .dot.registered { background: var(--accent-2); }
 
 .phone-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  width: min(92vw, 340px);
+  flex: 1;
+  width: 100%;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* Dial screen */
+
+.dial-display {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dial-display input {
+  background: transparent;
+  border: none;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  padding: 8px 40px;
+}
+
+.dial-display input:focus { outline: none; }
+
+.backspace-btn {
+  position: absolute;
+  right: 0;
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
 }
 
 .keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 14px;
   width: 100%;
 }
 
 .key {
   aspect-ratio: 1;
+  border-radius: 50%;
   background: var(--panel-2);
   color: var(--text);
-  font-size: 20px;
-  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
 }
 
 .key:active { background: var(--border); }
 
-.call-btn {
-  width: 100%;
-  padding: 14px;
-  font-size: 16px;
-  font-weight: 600;
+.key-digit { font-size: 24px; font-weight: 500; }
+.key-letters { font-size: 9px; letter-spacing: 1px; color: var(--text-dim); margin-top: 1px; }
+
+/* Round call-action buttons (call / hangup) */
+
+.round-btn {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  padding: 20px;
   color: white;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
 }
 
-.call-btn.dial { background: var(--accent-2); }
-.call-btn.hangup { background: var(--danger); }
+.round-btn.call { background: var(--accent-2); }
+.round-btn.hangup { background: var(--danger); }
+.round-btn.hangup svg { transform: rotate(135deg); }
 
-.call-remote { font-size: 20px; font-weight: 600; }
+/* Active / incoming call screens */
+
+.call-screen { justify-content: space-evenly; }
+
+.call-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  padding: 28px;
+}
+
+.call-avatar.pulse { animation: pulse-ring 1.8s ease-out infinite; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(79, 140, 255, 0.5); }
+  100% { box-shadow: 0 0 0 22px rgba(79, 140, 255, 0); }
+}
+
+.call-remote { font-size: 22px; font-weight: 600; }
 .call-remote-sub { color: var(--text-dim); }
 .call-timer { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 .call-controls {
   display: flex;
-  gap: 10px;
-  width: 100%;
+  gap: 24px;
 }
 
 .ctrl-btn {
-  flex: 1;
-  background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
   color: var(--text);
-  padding: 10px;
 }
 
-.ctrl-btn.on { background: var(--accent); color: white; }
+.ctrl-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  padding: 13px;
+  display: flex;
+}
+
+.ctrl-btn.on .ctrl-icon { background: var(--accent); color: white; }
+.ctrl-label { font-size: 11px; color: var(--text-dim); }
 
 .incoming-actions {
   display: flex;
-  gap: 10px;
-  width: 100%;
+  gap: 48px;
 }
 
-.incoming-actions .call-btn { flex: 1; }
+.incoming-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
 
-/* ---- Messages tab ---- */
+/* ---- Messages tab ----
+   Phone-app style: the list and an open thread are two full-width screens,
+   never a side-by-side desktop layout - only one is visible at a time. */
 
 .messages-layout {
   display: flex;
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .conversation-list {
-  width: 260px;
+  width: 100%;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+}
+
+.messages-layout.thread-open .conversation-list { display: none; }
+
+.conversation-view { display: none; }
+.messages-layout.thread-open .conversation-view { display: flex; }
+
+.back-btn {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 .conversation-list-header {
@@ -266,12 +389,14 @@ button {
 
 .conversation-view {
   flex: 1;
-  display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
 .conversation-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
@@ -351,11 +476,23 @@ button {
 .hint { color: var(--text-dim); font-size: 12px; margin: 0; }
 .error { color: var(--danger); font-size: 13px; text-align: center; margin: 0; }
 
-/* ---- Mobile ---- */
+/* On a wide (desktop) viewport, present the app inside a phone-shaped frame
+   instead of stretching it edge-to-edge. */
+@media (min-width: 700px) and (min-height: 700px) {
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #05060a;
+  }
 
-@media (max-width: 720px) {
-  .conversation-list { width: 120px; }
-  .conversation-preview { display: none; }
-  .topbar { gap: 8px; padding: 8px; }
-  .tab-btn { padding: 8px 10px; font-size: 13px; }
+  #login-screen, #app {
+    height: min(90vh, 900px);
+    width: 420px;
+    background: var(--bg);
+    border-radius: 40px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border);
+  }
 }
