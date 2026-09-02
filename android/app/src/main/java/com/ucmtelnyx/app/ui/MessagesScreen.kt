@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -105,7 +105,7 @@ private fun ThreadScreen(number: String, messages: List<Message>, onBack: () -> 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppAccent)
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = AppAccent)
             }
             Spacer(Modifier.width(4.dp))
             Text(number, color = AppText, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)

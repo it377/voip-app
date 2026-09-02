@@ -83,7 +83,7 @@ private fun DialScreen(dialed: String, onDigit: (String) -> Unit, onBackspace: (
             Text(dialed.ifEmpty { " " }, color = AppText, fontSize = 30.sp, fontWeight = FontWeight.Light)
             if (dialed.isNotEmpty()) {
                 IconButton(onClick = onBackspace, modifier = Modifier.align(Alignment.CenterEnd)) {
-                    Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete", tint = AppTextDim)
+                    Icon(Icons.Filled.Backspace, contentDescription = "Delete", tint = AppTextDim)
                 }
             }
         }
