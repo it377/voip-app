@@ -1,0 +1,18 @@
+# Example systemd unit for running without Docker on a VPS.
+# Install: copy to /etc/systemd/system/ucm-telnyx-app.service, edit the paths/user,
+# then: sudo systemctl daemon-reload && sudo systemctl enable --now ucm-telnyx-app
+[Unit]
+Description=ucm-telnyx-app (SIP softphone + Telnyx SMS)
+After=network.target
+
+[Service]
+Type=simple
+User=ucmapp
+WorkingDirectory=/opt/ucm-telnyx-app
+EnvironmentFile=/opt/ucm-telnyx-app/.env
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

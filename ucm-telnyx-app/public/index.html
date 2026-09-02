@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>UCM / Telnyx</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+  <!-- Login screen -->
+  <div id="login-screen" class="screen hidden">
+    <form id="login-form" class="login-card">
+      <h1>UCM / Telnyx</h1>
+      <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" autofocus />
+      <button type="submit">Sign in</button>
+      <p id="login-error" class="error hidden"></p>
+    </form>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="screen hidden">
+    <header class="topbar">
+      <div class="brand">UCM / Telnyx</div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="phone">Phone</button>
+        <button class="tab-btn" data-tab="messages">Messages</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+      </div>
+      <button id="logout-btn" class="ghost-btn">Log out</button>
+    </header>
+
+    <!-- Phone tab -->
+    <section id="tab-phone" class="tab-panel active">
+      <div class="reg-status">
+        <span id="reg-dot" class="dot"></span>
+        <span id="reg-text">Not registered</span>
+      </div>
+
+      <div id="call-idle" class="phone-card">
+        <input id="dial-number" type="tel" placeholder="Enter number" inputmode="tel" />
+        <div class="keypad">
+          <button class="key" data-key="1">1</button>
+          <button class="key" data-key="2">2</button>
+          <button class="key" data-key="3">3</button>
+          <button class="key" data-key="4">4</button>
+          <button class="key" data-key="5">5</button>
+          <button class="key" data-key="6">6</button>
+          <button class="key" data-key="7">7</button>
+          <button class="key" data-key="8">8</button>
+          <button class="key" data-key="9">9</button>
+          <button class="key" data-key="*">*</button>
+          <button class="key" data-key="0">0</button>
+          <button class="key" data-key="#">#</button>
+        </div>
+        <button id="call-btn" class="call-btn dial">Call</button>
+      </div>
+
+      <div id="call-active" class="phone-card hidden">
+        <div id="call-remote" class="call-remote">—</div>
+        <div id="call-timer" class="call-timer">00:00</div>
+        <div class="call-controls">
+          <button id="mute-btn" class="ctrl-btn">Mute</button>
+          <button id="hold-btn" class="ctrl-btn">Hold</button>
+          <button id="dtmf-btn" class="ctrl-btn">Keypad</button>
+        </div>
+        <button id="hangup-btn" class="call-btn hangup">Hang up</button>
+      </div>
+
+      <div id="call-incoming" class="phone-card hidden">
+        <div class="call-remote">Incoming call</div>
+        <div id="incoming-from" class="call-remote-sub">—</div>
+        <div class="incoming-actions">
+          <button id="answer-btn" class="call-btn dial">Answer</button>
+          <button id="reject-btn" class="call-btn hangup">Decline</button>
+        </div>
+      </div>
+
+      <audio id="remote-audio" autoplay playsinline></audio>
+    </section>
+
+    <!-- Messages tab -->
+    <section id="tab-messages" class="tab-panel">
+      <div class="messages-layout">
+        <aside class="conversation-list">
+          <div class="conversation-list-header">
+            <button id="new-convo-btn" class="ghost-btn small">+ New</button>
+          </div>
+          <div id="conversations" class="conversations"></div>
+        </aside>
+        <div class="conversation-view">
+          <div id="conversation-title" class="conversation-title">Select a conversation</div>
+          <div id="conversation-messages" class="conversation-messages"></div>
+          <form id="compose-form" class="compose-form">
+            <input id="compose-to" type="tel" placeholder="To (E.164, e.g. +15551234567)" class="hidden" />
+            <input id="compose-text" type="text" placeholder="Type a message…" autocomplete="off" />
+            <button type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings tab -->
+    <section id="tab-settings" class="tab-panel">
+      <form id="sip-settings-form" class="settings-card">
+        <h2>SIP / PBX connection</h2>
+        <p class="hint">
+          Stored only in this browser (localStorage) - never sent to the app server.
+        </p>
+        <label>WebSocket URL
+          <input id="sip-wss" type="text" placeholder="wss://your-ucm-host:8089/ws" />
+        </label>
+        <label>SIP domain
+          <input id="sip-domain" type="text" placeholder="your-ucm-host-or-ip" />
+        </label>
+        <label>Extension
+          <input id="sip-extension" type="text" placeholder="1001" />
+        </label>
+        <label>SIP password
+          <input id="sip-password" type="password" placeholder="extension SIP secret" />
+        </label>
+        <div class="settings-actions">
+          <button type="submit">Save & Register</button>
+          <button type="button" id="sip-unregister-btn" class="ghost-btn">Unregister</button>
+        </div>
+        <p id="sip-settings-status" class="hint"></p>
+      </form>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sip.js@0.21.2/dist/sip.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
