@@ -61,7 +61,7 @@ dependencies {
     // and https://download.linphone.org/maven_repository/org/linphone/linphone-sdk-android/
     // for the latest published version; pin an exact version once you confirm one
     // resolves for you (Android Studio will list available versions on sync).
-    implementation("org.linphone:linphone-sdk-android:5.3.65")
+    implementation("org.linphone:linphone-sdk-android:5.5.16")
 
     // Backend REST + WebSocket client
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
