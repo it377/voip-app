@@ -58,10 +58,12 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     // Native SIP/VoIP engine - see https://gitlab.linphone.org/BC/public/linphone-sdk
-    // and https://download.linphone.org/maven_repository/org/linphone/linphone-sdk-android/
-    // for the latest published version; pin an exact version once you confirm one
-    // resolves for you (Android Studio will list available versions on sync).
-    implementation("org.linphone:linphone-sdk-android:5.5.16")
+    // Dynamic version on purpose: it makes Gradle read the repo's maven-metadata.xml
+    // and take the newest 5.x that actually exists, instead of failing on a hand-picked
+    // version number (5.3.65 and 5.5.16 were both tried and neither exists). Once a
+    // sync succeeds, pin the exact version it resolved (Gradle > Dependencies in
+    // Android Studio, or ./gradlew :app:dependencies) so builds stay reproducible.
+    implementation("org.linphone:linphone-sdk-android:5.+")
 
     // Backend REST + WebSocket client
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

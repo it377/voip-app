@@ -40,10 +40,15 @@ find the right name for whatever version actually resolves.
 2. **File > Open**, pick the `android/` folder in this repo.
 3. Let Gradle sync - first sync downloads the Android Gradle Plugin, Compose
    libraries, and the Linphone SDK, so it'll take a few minutes.
-4. If the Linphone SDK dependency fails to resolve, open
-   `app/build.gradle.kts` and check
+4. The Linphone SDK dependency is declared as a dynamic version (`5.+`) so
+   Gradle picks whatever 5.x actually exists in Linphone's repo rather than a
+   hand-picked version number. Once sync succeeds, pin the version it
+   resolved (Android Studio's **Gradle > Dependencies** view, or
+   `./gradlew :app:dependencies`) for reproducible builds. If it still fails
+   to resolve, open
    [the Linphone Maven repository listing](https://download.linphone.org/maven_repository/org/linphone/linphone-sdk-android/)
-   for the current version, then update the version string there.
+   in a browser to confirm the live repo host and available versions, and
+   adjust `settings.gradle.kts` / `app/build.gradle.kts` accordingly.
 5. Plug in an Android phone (USB debugging enabled) or start an emulator,
    and hit Run. For a standalone APK instead:
    ```bash

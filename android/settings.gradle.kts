@@ -11,7 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // Linphone's own repository, needed for the linphone-sdk-android artifact.
+        // The Linphone SDK is not on Maven Central - it's served from Linphone's own
+        // Maven repo. Both of these hostnames appear in Linphone's docs and sample
+        // projects, so declare both and let Gradle use whichever is live.
+        maven { url = uri("https://download.linphone.org/maven_repository") }
         maven { url = uri("https://linphone.org/maven_repository") }
     }
 }
