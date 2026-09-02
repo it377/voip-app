@@ -1,6 +1,6 @@
 # Example Caddy reverse proxy config - gives you free auto-renewing HTTPS
 # (required by Telnyx's webhook and by the browser for mic access) in front
-# of the Node app. Install Caddy, drop this at /etc/caddy/Caddyfile (with your
+# of the Flask app. Install Caddy, drop this at /etc/caddy/Caddyfile (with your
 # real domain), then: sudo systemctl reload caddy
 your-domain.example.com {
     reverse_proxy localhost:3000

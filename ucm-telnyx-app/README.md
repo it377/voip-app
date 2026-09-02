@@ -5,7 +5,7 @@ A self-hosted, single-page web app that combines:
 1. **A SIP/WebRTC softphone** ([SIP.js](https://sipjs.com/) in the browser) that
    registers as an extension on your Grandstream **UCM6301** over a secure
    WebSocket (WSS), so you can make/receive calls from a tab.
-2. **Telnyx SMS/MMS messaging** — an Express backend that sends outbound texts
+2. **Telnyx SMS/MMS messaging** — a Flask backend that sends outbound texts
    via the Telnyx Messages API and receives inbound texts via a Telnyx
    webhook, pushing new messages to the browser live over WebSocket.
 
@@ -15,8 +15,12 @@ to Telnyx. The only thing tying them together is the UI and the login.
 
 ## 1. Local setup
 
+Requires Python 3.10+.
+
 ```bash
-npm install
+python3 -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 cp .env.example .env
 ```
 
@@ -25,7 +29,7 @@ Edit `.env`:
 | Variable | Where to get it |
 |---|---|
 | `APP_PASSWORD` | Pick a password for the app's login screen. |
-| `SESSION_SECRET` | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `SESSION_SECRET` | `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `TELNYX_API_KEY` | [Telnyx Portal → API Keys](https://portal.telnyx.com/#/app/api-keys) |
 | `TELNYX_FROM_NUMBER` | The Telnyx number you're texting from, E.164 (`+15555550123`) |
 | `TELNYX_MESSAGING_PROFILE_ID` | [Telnyx Portal → Messaging → Messaging Profiles](https://portal.telnyx.com/#/app/messaging) — the profile your number is assigned to |
@@ -35,8 +39,11 @@ Edit `.env`:
 Start it:
 
 ```bash
-npm start
+python app.py
 ```
+
+(`app.py` runs Flask's built-in dev server, which is fine for local use. For
+anything always-on, part 4 switches to gunicorn instead.)
 
 Open **http://localhost:3000**, log in with `APP_PASSWORD`, and you should see
 Phone / Messages / Settings tabs.
@@ -148,6 +155,11 @@ cp .env.example .env   # fill in real values
 docker compose up -d --build
 ```
 
+The image runs the app with `gunicorn` (a production WSGI server), pinned to
+a single worker — see the note in `app.py` about why (the in-memory
+WebSocket client set and the JSON store are per-process; more workers would
+silently drop broadcasts and risk write races).
+
 Put a reverse proxy in front for HTTPS + your domain. [Caddy](https://caddyserver.com/)
 is the least fuss (automatic Let's Encrypt certs, ~5-line config) — see
 `deploy/Caddyfile.example`. Point your domain's A record at the VPS, install
@@ -163,10 +175,12 @@ That URL never changes again, unlike the ngrok one.
 
 ### Option B: VPS without Docker
 
-Install Node 20+, `npm install --omit=dev`, and use the provided
-`deploy/ucm-telnyx-app.service` systemd unit (copy it into
-`/etc/systemd/system/`, adjust paths/user, `systemctl enable --now`) so it
-restarts on boot/crash. Same Caddy/reverse-proxy step as above for HTTPS.
+Install Python 3.10+, create a venv and `pip install -r requirements.txt` in
+the app directory, then use the provided `deploy/ucm-telnyx-app.service`
+systemd unit (copy it into `/etc/systemd/system/`, adjust paths/user,
+`systemctl enable --now`) so it restarts on boot/crash — it runs the same
+single-worker gunicorn command as the Docker image. Same Caddy/reverse-proxy
+step as above for HTTPS.
 
 ### Either way
 
@@ -184,8 +198,10 @@ webhook backend), just harden pieces of it:
 
 - **Storage**: `data/messages.json` is a single flat file rewritten on every
   message — fine at low volume, but it'll get slower and riskier (one bad
-  write) as history grows. `better-sqlite3` would be a drop-in-ish swap behind
-  the same `lib/store.js` API and buys you real querying/search.
+  write) as history grows, and it's also why this app must run as a single
+  process/worker (see the note in `app.py`). Python's built-in `sqlite3`
+  would be a drop-in-ish swap behind the same `store.py` functions, buys you
+  real querying/search, and would let you scale past one worker later.
 - **Auth**: one shared password for the whole app is weak (no per-user
   accounts, no 2FA, one leaked password = full access to your calls and
   texts). If this is going to be reachable from the public internet
@@ -199,7 +215,7 @@ webhook backend), just harden pieces of it:
   for incoming calls, or accepting that the softphone is a desktop-primarily
   feature and mobile is for texting).
 - **Webhook signature verification**: implemented and on by default once
-  `TELNYX_PUBLIC_KEY` is set (see `lib/telnyx.js`) — just make sure it's
+  `TELNYX_PUBLIC_KEY` is set (see `telnyx_client.py`) — just make sure it's
   actually set before exposing the webhook publicly.
 
 ## Security notes

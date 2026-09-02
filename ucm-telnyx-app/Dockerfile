@@ -1,13 +1,16 @@
-FROM node:20-alpine
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV NODE_ENV=production
+ENV FLASK_ENV=production
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+# Single worker: the in-memory WebSocket client set and the JSON message
+# store are process-local, so more workers would silently miss broadcasts
+# and risk file-write races. See README for scaling this beyond one process.
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "--worker-class", "gthread", "--threads", "8", "app:app"]
