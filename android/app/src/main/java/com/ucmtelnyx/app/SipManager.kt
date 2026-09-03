@@ -23,6 +23,7 @@ data class CallUiState(
     val remoteAddress: String = "",
     val isMuted: Boolean = false,
     val isOnHold: Boolean = false,
+    val isSpeakerOn: Boolean = false,
 )
 
 /**
@@ -96,6 +97,7 @@ class SipManager(private val context: Context) {
                 state: Call.State?,
                 message: String,
             ) {
+                android.util.Log.i("SipManager", "Call state=$state message=$message")
                 when (state) {
                     Call.State.IncomingReceived -> {
                         activeCall = call
@@ -122,11 +124,15 @@ class SipManager(private val context: Context) {
                         _callState.value = _callState.value.copy(isOnHold = false)
                     }
                     Call.State.End, Call.State.Error, Call.State.Released -> {
-                        if (activeCall == call) {
-                            activeCall = null
-                            context.setAudioModeInCall(false)
-                            _callState.value = CallUiState()
-                        }
+                        // Deliberately NOT comparing against a stored reference. The
+                        // Call handed to this callback is a wrapper around a native
+                        // object and isn't guaranteed to be the same Java instance we
+                        // kept, so an identity check can silently miss the hangup and
+                        // strand the UI on the call screen. This app only ever has one
+                        // call at a time, so any End/Error/Released means "call over".
+                        activeCall = null
+                        context.setAudioModeInCall(false)
+                        _callState.value = CallUiState()
                     }
                     else -> Unit
                 }
@@ -186,16 +192,28 @@ class SipManager(private val context: Context) {
         core.inviteAddress(address)
     }
 
+    // Always fall back to the Core's own view of the current call: our stored
+    // reference can be stale (see the note in the End/Released handler), and a
+    // hangup that silently does nothing leaves the other side stuck on the call.
+    private fun currentCall(): Call? = activeCall ?: core.currentCall
+
     fun answer() {
-        activeCall?.accept()
+        currentCall()?.accept()
     }
 
     fun decline() {
-        activeCall?.decline(org.linphone.core.Reason.Declined)
+        currentCall()?.decline(org.linphone.core.Reason.Declined)
     }
 
     fun hangup() {
-        activeCall?.terminate()
+        val call = currentCall()
+        if (call != null) {
+            call.terminate()
+        } else {
+            // Nothing tracked but the UI thinks there's a call - make sure the
+            // PBX gets a BYE regardless.
+            core.terminateAllCalls()
+        }
     }
 
     fun toggleMute() {
@@ -204,12 +222,26 @@ class SipManager(private val context: Context) {
     }
 
     fun toggleHold() {
-        val call = activeCall ?: return
+        val call = currentCall() ?: return
         if (_callState.value.isOnHold) call.resume() else call.pause()
     }
 
+    /**
+     * Route audio out the loudspeaker instead of the earpiece. Uses Android's
+     * AudioManager rather than Linphone's AudioDevice API - it's the widely
+     * supported route and works alongside MODE_IN_COMMUNICATION, which is
+     * already set once a call connects.
+     */
+    fun toggleSpeaker() {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val turnOn = !_callState.value.isSpeakerOn
+        @Suppress("DEPRECATION")
+        audioManager.isSpeakerphoneOn = turnOn
+        _callState.value = _callState.value.copy(isSpeakerOn = turnOn)
+    }
+
     fun sendDtmf(digit: Char) {
-        activeCall?.sendDtmf(digit)
+        currentCall()?.sendDtmf(digit)
     }
 
     fun destroy() {
@@ -249,4 +281,10 @@ private fun explainFailure(message: String): String {
 private fun Context.setAudioModeInCall(inCall: Boolean) {
     val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     audioManager.mode = if (inCall) AudioManager.MODE_IN_COMMUNICATION else AudioManager.MODE_NORMAL
+    if (!inCall) {
+        // Leave the speaker off for the next call, and don't strand the device
+        // in speakerphone once this one ends.
+        @Suppress("DEPRECATION")
+        audioManager.isSpeakerphoneOn = false
+    }
 }

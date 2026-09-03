@@ -35,6 +35,7 @@ fun PhoneScreen(
     onDecline: () -> Unit,
     onHangup: () -> Unit,
     onMute: () -> Unit,
+    onSpeaker: () -> Unit,
     onHold: () -> Unit,
     onDtmf: (Char) -> Unit,
 ) {
@@ -64,7 +65,7 @@ fun PhoneScreen(
                 onBackspace = { dialed = dialed.dropLast(1) },
                 onCall = { if (dialed.isNotBlank()) onCall(dialed) },
             )
-            CallPhase.OUTGOING, CallPhase.ACTIVE -> ActiveCallScreen(callState, onMute, onHold, onHangup)
+            CallPhase.OUTGOING, CallPhase.ACTIVE -> ActiveCallScreen(callState, onMute, onSpeaker, onHold, onHangup)
             CallPhase.INCOMING -> IncomingCallScreen(callState, onAnswer, onDecline)
         }
     }
@@ -125,7 +126,13 @@ private fun KeypadButton(digit: String, letters: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ActiveCallScreen(state: CallUiState, onMute: () -> Unit, onHold: () -> Unit, onHangup: () -> Unit) {
+private fun ActiveCallScreen(
+    state: CallUiState,
+    onMute: () -> Unit,
+    onSpeaker: () -> Unit,
+    onHold: () -> Unit,
+    onHangup: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
         verticalArrangement = Arrangement.SpaceEvenly,
@@ -135,6 +142,7 @@ private fun ActiveCallScreen(state: CallUiState, onMute: () -> Unit, onHold: () 
         Text(state.remoteAddress, color = AppText, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             CtrlButton(Icons.Filled.MicOff, "Mute", state.isMuted, onMute)
+            CtrlButton(Icons.Filled.VolumeUp, "Speaker", state.isSpeakerOn, onSpeaker)
             CtrlButton(Icons.Filled.PauseCircle, "Hold", state.isOnHold, onHold)
         }
         RoundActionButton(icon = Icons.Filled.CallEnd, background = AppDanger, onClick = onHangup)

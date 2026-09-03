@@ -247,6 +247,7 @@ private fun AppRoot(
                             onDecline = { sipManager?.decline() },
                             onHangup = { sipManager?.hangup() },
                             onMute = { sipManager?.toggleMute() },
+                            onSpeaker = { sipManager?.toggleSpeaker() },
                             onHold = { sipManager?.toggleHold() },
                             onDtmf = { digit -> sipManager?.sendDtmf(digit) },
                         )
