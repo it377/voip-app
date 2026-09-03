@@ -55,6 +55,23 @@ plus an **Admin** tab.
 First thing to do there: fill in **PBX settings**, then add users and assign
 each one an extension.
 
+### If you can't sign in (forgotten admin password)
+
+The first-run password is printed once and hashed immediately, so it can't be
+looked up later. Use the account CLI instead — **stop the server first**, since
+it keeps accounts in memory and would overwrite the change:
+
+```bash
+python manage.py list                 # see what accounts exist
+python manage.py passwd admin         # prompts for a new password
+python manage.py create-admin <name>  # add another administrator
+python manage.py activate <name>      # re-enable a disabled account
+```
+
+Then start the server again and sign in. This edits `data/accounts.json`
+directly, so it works even when nobody can log in — no need to delete accounts
+and start over.
+
 Sending a text won't require any tunnel — that's a normal outbound API call.
 Receiving one does (part 3).
 
