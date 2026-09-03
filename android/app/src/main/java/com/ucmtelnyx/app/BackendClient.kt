@@ -1,5 +1,6 @@
 package com.ucmtelnyx.app
 
+import android.content.Context
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -14,16 +15,34 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import java.util.concurrent.ConcurrentHashMap
 
-private class MemoryCookieJar : CookieJar {
-    private val store = ConcurrentHashMap<String, List<Cookie>>()
+/**
+ * Cookies must outlive the Activity. They were previously kept in memory only,
+ * which meant any Activity recreation (rotation, screen off mid-call, system
+ * pressure) built a fresh client with an empty jar - the session cookie
+ * vanished and the app bounced back to the login screen, mid-call.
+ */
+private class PersistentCookieJar(context: Context) : CookieJar {
+    private val prefs = context.getSharedPreferences("ucm_cookies", Context.MODE_PRIVATE)
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-        store[url.host] = cookies
+        if (cookies.isEmpty()) return
+        val replacedNames = cookies.map { it.name }.toSet()
+        val kept = read(url).filter { it.name !in replacedNames }
+        val lines = (kept + cookies).map { it.toString() }.toSet()
+        prefs.edit().putStringSet(url.host, lines).apply()
     }
 
-    override fun loadForRequest(url: HttpUrl): List<Cookie> = store[url.host] ?: emptyList()
+    override fun loadForRequest(url: HttpUrl): List<Cookie> {
+        val now = System.currentTimeMillis()
+        return read(url).filter { it.expiresAt > now }
+    }
+
+    private fun read(url: HttpUrl): List<Cookie> =
+        (prefs.getStringSet(url.host, emptySet()) ?: emptySet())
+            .mapNotNull { Cookie.parse(url, it) }
+
+    fun clear() = prefs.edit().clear().apply()
 }
 
 class BackendException(message: String) : Exception(message)
@@ -34,10 +53,10 @@ class BackendException(message: String) : Exception(message)
  * "https://voip.example.com" - unlike the browser app this isn't same-origin,
  * so it has to be entered once in Settings.
  */
-class BackendClient(private var baseUrl: String) {
+class BackendClient(context: Context, private var baseUrl: String) {
 
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-    private val cookieJar = MemoryCookieJar()
+    private val cookieJar = PersistentCookieJar(context.applicationContext)
     private val client = OkHttpClient.Builder().cookieJar(cookieJar).build()
 
     private val jsonMedia = "application/json".toMediaType()
@@ -111,6 +130,7 @@ class BackendClient(private var baseUrl: String) {
     }
 
     suspend fun logout() = withContext(Dispatchers.IO) {
+        cookieJar.clear()
         runCatching {
             val request = Request.Builder()
                 .url(url("/api/logout"))

@@ -7,6 +7,7 @@ import android.os.Looper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.linphone.core.AudioDevice
 import org.linphone.core.Call
 import org.linphone.core.Core
 import org.linphone.core.CoreListenerStub
@@ -52,6 +53,10 @@ class SipManager(private val context: Context) {
     val callState: StateFlow<CallUiState> = _callState.asStateFlow()
 
     private var activeCall: Call? = null
+
+    // What we're currently registered as, so a repeated register() with identical
+    // settings is a no-op rather than a disruptive account rebuild.
+    private var registeredAs: String? = null
 
     private val iterateRunnable = object : Runnable {
         override fun run() {
@@ -149,7 +154,33 @@ class SipManager(private val context: Context) {
      * This registers a normal SIP extension - the same extension can also be used for
      * WebRTC in a browser, but not registered from both at the same instant on some PBXes.
      */
-    fun register(domain: String, port: Int, transport: String, username: String, password: String) {
+    fun register(
+        domain: String,
+        port: Int,
+        transport: String,
+        username: String,
+        password: String,
+        force: Boolean = false,
+    ) {
+        val wanted = "$username@$domain:$port/$transport"
+
+        // Re-registering tears down and rebuilds the account (clearAccounts below).
+        // Doing that during a call drops the call, and the app re-runs this on every
+        // Activity recreation - so skip when nothing changed, and never touch the
+        // accounts while a call is up. `force` is for the explicit Reconnect button,
+        // which should still work when already registered - but not mid-call.
+        if (!force && wanted == registeredAs &&
+            (_regStatus.value == RegStatus.REGISTERED || _regStatus.value == RegStatus.CONNECTING)
+        ) {
+            android.util.Log.i("SipManager", "Already registered as $wanted - skipping")
+            return
+        }
+        if (core.currentCall != null) {
+            android.util.Log.i("SipManager", "Call in progress - deferring re-registration")
+            return
+        }
+
+        registeredAs = wanted
         _regStatus.value = RegStatus.CONNECTING
 
         val authInfo = Factory.instance().createAuthInfo(username, null, password, null, null, domain)
@@ -177,6 +208,7 @@ class SipManager(private val context: Context) {
     }
 
     fun unregister() {
+        registeredAs = null
         core.defaultAccount?.let { account ->
             val params = account.params.clone()
             params.isRegisterEnabled = false
@@ -227,16 +259,35 @@ class SipManager(private val context: Context) {
     }
 
     /**
-     * Route audio out the loudspeaker instead of the earpiece. Uses Android's
-     * AudioManager rather than Linphone's AudioDevice API - it's the widely
-     * supported route and works alongside MODE_IN_COMMUNICATION, which is
-     * already set once a call connects.
+     * Route call audio to the loudspeaker or back to the earpiece.
+     *
+     * This has to go through Linphone's own AudioDevice API: the Core manages
+     * the audio session itself while a call is up and overrides
+     * AudioManager.setSpeakerphoneOn, which is why toggling AudioManager alone
+     * did nothing. AudioManager is still set as a belt-and-braces for devices
+     * where the Core doesn't take over routing.
      */
     fun toggleSpeaker() {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val turnOn = !_callState.value.isSpeakerOn
+        val wantedType = if (turnOn) AudioDevice.Type.Speaker else AudioDevice.Type.Earpiece
+
+        val devices = core.audioDevices
+        android.util.Log.i(
+            "SipManager",
+            "Audio devices: " + devices.joinToString { "${it.deviceName}/${it.type}" },
+        )
+        val device = devices.firstOrNull { it.type == wantedType }
+        if (device != null) {
+            currentCall()?.outputAudioDevice = device
+            android.util.Log.i("SipManager", "Output device -> ${device.deviceName}")
+        } else {
+            android.util.Log.w("SipManager", "No audio device of type $wantedType available")
+        }
+
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         @Suppress("DEPRECATION")
         audioManager.isSpeakerphoneOn = turnOn
+
         _callState.value = _callState.value.copy(isSpeakerOn = turnOn)
     }
 

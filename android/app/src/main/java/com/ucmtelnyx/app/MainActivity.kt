@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
-        backend = BackendClient(prefs.backendUrl)
+        backend = BackendClient(this, prefs.backendUrl)
 
         requestRuntimePermissions()
         // Plain bind (not startForegroundService): CallService only promotes itself to a
@@ -132,7 +132,7 @@ private fun AppRoot(
 
     // Pull the assigned extension and register with it - the whole point of the
     // admin-provisioned setup: nothing typed in on the device.
-    fun connectSip() {
+    fun connectSip(force: Boolean = false) {
         scope.launch {
             backend.sipConfig()
                 .onSuccess { config ->
@@ -150,6 +150,7 @@ private fun AppRoot(
                                 config.sipTransport,
                                 config.extension,
                                 config.password,
+                                force = force,
                             )
                         }
                     }
@@ -269,7 +270,7 @@ private fun AppRoot(
                             sipConfig = sipConfig,
                             statusText = sipStatus,
                             regDetail = regDetail,
-                            onReconnect = { connectSip() },
+                            onReconnect = { connectSip(force = true) },
                             onUnregister = { sipManager?.unregister() },
                             onLogout = {
                                 scope.launch {

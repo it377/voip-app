@@ -23,6 +23,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|uiMode|density"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:theme="@style/Theme.UcmTelnyx">
