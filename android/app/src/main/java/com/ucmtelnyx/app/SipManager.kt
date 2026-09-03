@@ -181,8 +181,16 @@ class SipManager(private val context: Context) {
             android.util.Log.i("SipManager", "Already registered as $wanted - skipping")
             return
         }
-        if (core.currentCall != null) {
-            android.util.Log.i("SipManager", "Call in progress - deferring re-registration")
+        // Check our own call state as well as the Core's. core.currentCall can
+        // report null in states where a call is still very much up (held, early
+        // media), and re-registering then tears down the account underneath it -
+        // which shows up in logcat as "Unregistration done" mid-call, followed by
+        // the call dying.
+        if (core.currentCall != null || _callState.value.phase != CallPhase.IDLE) {
+            android.util.Log.i(
+                "SipManager",
+                "Call in progress (phase=${_callState.value.phase}) - deferring re-registration",
+            )
             return
         }
 
