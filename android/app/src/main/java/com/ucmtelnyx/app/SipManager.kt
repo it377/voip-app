@@ -1,7 +1,9 @@
 package com.ucmtelnyx.app
 
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -261,32 +263,60 @@ class SipManager(private val context: Context) {
     /**
      * Route call audio to the loudspeaker or back to the earpiece.
      *
-     * This has to go through Linphone's own AudioDevice API: the Core manages
-     * the audio session itself while a call is up and overrides
-     * AudioManager.setSpeakerphoneOn, which is why toggling AudioManager alone
-     * did nothing. AudioManager is still set as a belt-and-braces for devices
-     * where the Core doesn't take over routing.
+     * Belt and braces on purpose, because the two obvious approaches each fail
+     * on their own: setSpeakerphoneOn is deprecated on API 31+ and often does
+     * nothing there, and Linphone's Core manages its own routing and can put
+     * the audio back. So this sets the platform's communication device (the
+     * modern API that actually works) *and* Linphone's output device, and logs
+     * both device lists so a failure is diagnosable from logcat.
      */
     fun toggleSpeaker() {
         val turnOn = !_callState.value.isSpeakerOn
-        val wantedType = if (turnOn) AudioDevice.Type.Speaker else AudioDevice.Type.Earpiece
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
+        // The audio session must be in communication mode for either routing API
+        // to take effect. It's normally set when the call connects, but a toggle
+        // during ringing would otherwise be ignored.
+        if (audioManager.mode != AudioManager.MODE_IN_COMMUNICATION) {
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        }
+
+        // Android 12 (API 31) deprecated setSpeakerphoneOn and it frequently has
+        // no effect there - setCommunicationDevice is the API that actually
+        // moves the audio on modern devices.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val wantedType =
+                if (turnOn) AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                else AudioDeviceInfo.TYPE_BUILTIN_EARPIECE
+            val available = audioManager.availableCommunicationDevices
+            android.util.Log.i(
+                "SipManager",
+                "Communication devices: " + available.joinToString { "${it.productName}/${it.type}" },
+            )
+            val target = available.firstOrNull { it.type == wantedType }
+            if (target != null) {
+                val applied = audioManager.setCommunicationDevice(target)
+                android.util.Log.i("SipManager", "setCommunicationDevice(${target.type}) -> $applied")
+            } else {
+                android.util.Log.w("SipManager", "No communication device of type $wantedType")
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = turnOn
+        }
+
+        // Also tell Linphone, which manages its own routing and can otherwise
+        // put the audio back where it wants it.
+        val wantedLinphoneType = if (turnOn) AudioDevice.Type.Speaker else AudioDevice.Type.Earpiece
         val devices = core.audioDevices
         android.util.Log.i(
             "SipManager",
-            "Audio devices: " + devices.joinToString { "${it.deviceName}/${it.type}" },
+            "Linphone devices: " + devices.joinToString { "${it.deviceName}/${it.type}" },
         )
-        val device = devices.firstOrNull { it.type == wantedType }
-        if (device != null) {
+        devices.firstOrNull { it.type == wantedLinphoneType }?.let { device ->
             currentCall()?.outputAudioDevice = device
-            android.util.Log.i("SipManager", "Output device -> ${device.deviceName}")
-        } else {
-            android.util.Log.w("SipManager", "No audio device of type $wantedType available")
+            android.util.Log.i("SipManager", "Linphone output -> ${device.deviceName}")
         }
-
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        @Suppress("DEPRECATION")
-        audioManager.isSpeakerphoneOn = turnOn
 
         _callState.value = _callState.value.copy(isSpeakerOn = turnOn)
     }
@@ -333,9 +363,13 @@ private fun Context.setAudioModeInCall(inCall: Boolean) {
     val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
     audioManager.mode = if (inCall) AudioManager.MODE_IN_COMMUNICATION else AudioManager.MODE_NORMAL
     if (!inCall) {
-        // Leave the speaker off for the next call, and don't strand the device
-        // in speakerphone once this one ends.
-        @Suppress("DEPRECATION")
-        audioManager.isSpeakerphoneOn = false
+        // Don't strand the device in speakerphone once the call ends, and start
+        // the next one on the earpiece.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            audioManager.clearCommunicationDevice()
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.isSpeakerphoneOn = false
+        }
     }
 }
