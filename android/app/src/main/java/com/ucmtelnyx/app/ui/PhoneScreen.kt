@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ucmtelnyx.app.CallPhase
@@ -27,6 +28,7 @@ private val keypadRows = listOf(
 @Composable
 fun PhoneScreen(
     regStatus: RegStatus,
+    regDetail: String,
     callState: CallUiState,
     onCall: (String) -> Unit,
     onAnswer: () -> Unit,
@@ -43,6 +45,16 @@ fun PhoneScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         RegistrationBadge(regStatus)
+        if (regStatus == RegStatus.FAILED && regDetail.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                regDetail,
+                color = AppTextDim,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
         Spacer(Modifier.height(8.dp))
 
         when (callState.phase) {

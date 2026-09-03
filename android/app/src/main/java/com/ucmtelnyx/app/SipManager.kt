@@ -41,6 +41,12 @@ class SipManager(private val context: Context) {
     private val _regStatus = MutableStateFlow(RegStatus.UNREGISTERED)
     val regStatus: StateFlow<RegStatus> = _regStatus.asStateFlow()
 
+    // The PBX's own words for why a registration failed ("Forbidden", "Timeout",
+    // "Not Found", ...). Without this, a failure is just a red dot with no clue
+    // whether it's credentials, the wrong port, or nothing listening at all.
+    private val _regDetail = MutableStateFlow("")
+    val regDetail: StateFlow<String> = _regDetail.asStateFlow()
+
     private val _callState = MutableStateFlow(CallUiState())
     val callState: StateFlow<CallUiState> = _callState.asStateFlow()
 
@@ -69,12 +75,18 @@ class SipManager(private val context: Context) {
                 state: RegistrationState?,
                 message: String,
             ) {
+                android.util.Log.i("SipManager", "Registration state=$state message=$message")
                 _regStatus.value = when (state) {
                     RegistrationState.Ok -> RegStatus.REGISTERED
                     RegistrationState.Progress -> RegStatus.CONNECTING
                     RegistrationState.Failed -> RegStatus.FAILED
                     RegistrationState.Cleared, RegistrationState.None -> RegStatus.UNREGISTERED
                     else -> _regStatus.value
+                }
+                _regDetail.value = when (state) {
+                    RegistrationState.Ok -> ""
+                    RegistrationState.Failed -> explainFailure(message)
+                    else -> message
                 }
             }
 
@@ -205,6 +217,33 @@ class SipManager(private val context: Context) {
         iterateHandler.removeCallbacks(iterateRunnable)
         core.stop()
     }
+}
+
+/**
+ * Turn the PBX's raw rejection into something that points at a cause. The
+ * distinction that matters most: a timeout means nothing answered (wrong port,
+ * blocked, unreachable), while a 401/403 means something answered and refused
+ * the credentials.
+ */
+private fun explainFailure(message: String): String {
+    val raw = message.ifBlank { "no response from the PBX" }
+    val lower = raw.lowercase()
+    val hint = when {
+        "timeout" in lower || "timed out" in lower ->
+            "Nothing answered on that host/port - check the SIP port and transport, " +
+                "and that the phone can actually reach the PBX."
+        "forbidden" in lower || "401" in lower || "403" in lower ->
+            "The PBX answered but rejected the credentials - check the extension " +
+                "number and its SIP secret."
+        "not found" in lower || "404" in lower ->
+            "The PBX doesn't know that extension - check the extension number."
+        "unauthorized" in lower ->
+            "Authentication rejected - check the extension's SIP secret."
+        "unavailable" in lower || "503" in lower ->
+            "The PBX is refusing service right now - it may be blocking this IP."
+        else -> "Check the extension, SIP secret, port/transport, and reachability."
+    }
+    return "$raw. $hint"
 }
 
 private fun Context.setAudioModeInCall(inCall: Boolean) {

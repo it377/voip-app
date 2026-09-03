@@ -236,8 +236,11 @@ private fun AppRoot(
                             ?: remember { mutableStateOf(RegStatus.UNREGISTERED) })
                         val callState by (sipManager?.callState?.collectAsStateWithLifecycle()
                             ?: remember { mutableStateOf(CallUiState()) })
+                        val regDetail by (sipManager?.regDetail?.collectAsStateWithLifecycle()
+                            ?: remember { mutableStateOf("") })
                         PhoneScreen(
                             regStatus = regStatus,
+                            regDetail = regDetail,
                             callState = callState,
                             onCall = { number -> sipManager?.call(number) },
                             onAnswer = { sipManager?.answer() },
@@ -257,25 +260,30 @@ private fun AppRoot(
                         onNewConversation = { number -> openThread(number) },
                         onSend = { to, text -> scope.launch { backend.sendMessage(to, text) } },
                     )
-                    Tab.SETTINGS -> SettingsScreen(
-                        me = me,
-                        sipConfig = sipConfig,
-                        statusText = sipStatus,
-                        onReconnect = { connectSip() },
-                        onUnregister = { sipManager?.unregister() },
-                        onLogout = {
-                            scope.launch {
-                                backend.logout()
-                                sipManager?.unregister()
-                                onCloseWebSocket()
-                                me = null
-                                sipConfig = null
-                                conversations = emptyList()
-                                openConversation = null
-                                openMessages = emptyList()
-                            }
-                        },
-                    )
+                    Tab.SETTINGS -> {
+                        val regDetail by (sipManager?.regDetail?.collectAsStateWithLifecycle()
+                            ?: remember { mutableStateOf("") })
+                        SettingsScreen(
+                            me = me,
+                            sipConfig = sipConfig,
+                            statusText = sipStatus,
+                            regDetail = regDetail,
+                            onReconnect = { connectSip() },
+                            onUnregister = { sipManager?.unregister() },
+                            onLogout = {
+                                scope.launch {
+                                    backend.logout()
+                                    sipManager?.unregister()
+                                    onCloseWebSocket()
+                                    me = null
+                                    sipConfig = null
+                                    conversations = emptyList()
+                                    openConversation = null
+                                    openMessages = emptyList()
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }

@@ -19,6 +19,7 @@ fun SettingsScreen(
     me: Me?,
     sipConfig: SipConfig?,
     statusText: String,
+    regDetail: String = "",
     onReconnect: () -> Unit,
     onUnregister: () -> Unit,
     onLogout: () -> Unit,
@@ -46,6 +47,23 @@ fun SettingsScreen(
 
         if (statusText.isNotBlank()) {
             Text(statusText, color = AppTextDim, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (regDetail.isNotBlank()) {
+            Text(
+                "Last registration result: $regDetail",
+                color = AppDanger,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            // Spell out exactly what it tried, so a wrong port or host is obvious.
+            sipConfig?.let {
+                Text(
+                    "Tried: ${it.extension}@${it.domain}:${it.sipPort} over " +
+                        it.sipTransport.uppercase(),
+                    color = AppTextDim,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
