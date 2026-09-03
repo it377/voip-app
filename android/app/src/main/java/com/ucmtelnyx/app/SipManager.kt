@@ -149,6 +149,10 @@ class SipManager(private val context: Context) {
         core.start()
         iterating = true
         iterateHandler.post(iterateRunnable)
+
+        // Build marker: if this line is missing from logcat, the phone is running
+        // an older APK than the source being debugged.
+        android.util.Log.i("SipManager", "SipManager started [build: speaker-diag-4]")
     }
 
     /**
@@ -271,6 +275,7 @@ class SipManager(private val context: Context) {
      * both device lists so a failure is diagnosable from logcat.
      */
     fun toggleSpeaker() {
+        android.util.Log.i("SipManager", "toggleSpeaker() entered")
         val turnOn = !_callState.value.isSpeakerOn
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
