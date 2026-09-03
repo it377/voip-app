@@ -19,9 +19,10 @@ import kotlinx.coroutines.launch
 fun LoginScreen(
     backendUrl: String,
     onBackendUrlChange: (String) -> Unit,
-    onLogin: suspend (password: String) -> Result<Unit>,
+    onLogin: suspend (username: String, password: String) -> Result<Unit>,
     onLoggedIn: () -> Unit,
 ) {
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -58,6 +59,14 @@ fun LoginScreen(
             )
 
             OutlinedTextField(
+                value = username,
+                onValueChange = { username = it; error = null },
+                label = { Text("Username") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            OutlinedTextField(
                 value = password,
                 onValueChange = { password = it; error = null },
                 label = { Text("Password") },
@@ -68,16 +77,16 @@ fun LoginScreen(
 
             Button(
                 onClick = {
-                    if (backendUrl.isBlank() || password.isBlank()) {
-                        error = "Enter the server URL and password"
+                    if (backendUrl.isBlank() || username.isBlank() || password.isBlank()) {
+                        error = "Enter the server URL, username and password"
                         return@Button
                     }
                     loading = true
                     scope.launch {
-                        val result = onLogin(password)
+                        val result = onLogin(username.trim(), password)
                         loading = false
                         result.onSuccess { onLoggedIn() }
-                            .onFailure { error = it.message ?: "Login failed" }
+                            .onFailure { error = it.message ?: "Sign in failed" }
                     }
                 },
                 enabled = !loading,

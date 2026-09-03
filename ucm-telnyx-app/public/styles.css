@@ -496,3 +496,116 @@ button:active { transform: scale(0.96); }
     border: 1px solid var(--border);
   }
 }
+
+/* ---- Admin panel ---- */
+
+#tab-admin {
+  padding: 24px 16px;
+  align-items: center;
+  overflow-y: auto;
+  gap: 16px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-header h2 { margin: 0; }
+
+.card-header button {
+  background: var(--accent);
+  color: white;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.settings-card h2 { font-size: 17px; margin: 0 0 4px; }
+
+.settings-card select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.settings-card button:not(.ghost-btn) {
+  background: var(--accent);
+  color: white;
+  padding: 10px 14px;
+}
+
+.users-list { display: flex; flex-direction: column; }
+
+.user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-row:last-child { border-bottom: none; }
+
+.user-main { min-width: 0; }
+.user-name { font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.user-sub { color: var(--text-dim); font-size: 12px; }
+.user-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+}
+
+.badge.admin { background: rgba(79, 140, 255, 0.18); color: var(--accent); }
+.badge.off { background: rgba(255, 91, 91, 0.15); color: var(--danger); }
+
+.ghost-btn.danger { color: var(--danger); border-color: rgba(255, 91, 91, 0.4); }
+
+/* Account info list on the Settings tab */
+
+.info-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.info-list dt { color: var(--text-dim); }
+.info-list dd { margin: 0; word-break: break-word; }
+
+/* Add/edit user dialog */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.dialog { max-height: 88vh; overflow-y: auto; }
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  color: var(--text) !important;
+  font-size: 14px !important;
+}
+
+.checkbox-row input { width: auto; }

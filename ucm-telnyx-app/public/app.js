@@ -7,10 +7,14 @@
 const loginScreen = document.getElementById('login-screen');
 const appScreen = document.getElementById('app');
 
+// Who's logged in: {id, username, displayName, role, canMessage, isAdmin}
+let me = null;
+
 async function checkSession() {
   const res = await fetch('/api/session');
-  const { authenticated } = await res.json();
-  if (authenticated) {
+  const data = await res.json();
+  if (data.authenticated) {
+    me = data.user;
     showApp();
   } else {
     showLogin();
@@ -30,18 +34,21 @@ function showApp() {
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
   const errorEl = document.getElementById('login-error');
   errorEl.classList.add('hidden');
   const res = await fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ username, password }),
   });
+  const data = await res.json().catch(() => ({}));
   if (res.ok) {
+    me = data.user;
     showApp();
   } else {
-    errorEl.textContent = 'Wrong password';
+    errorEl.textContent = data.error || 'Sign in failed';
     errorEl.classList.remove('hidden');
   }
 });
@@ -56,9 +63,21 @@ let appInitialized = false;
 function initApp() {
   if (appInitialized) return;
   appInitialized = true;
+  applyPermissions();
   initTabs();
   initPhone();
-  initMessaging();
+  if (me && me.canMessage) initMessaging();
+  if (me && me.isAdmin) initAdmin();
+}
+
+// Show only the tabs this account is allowed to use. The server enforces all
+// of this too - hiding tabs is just so people aren't shown dead ends.
+function applyPermissions() {
+  if (!me) return;
+  const messagesTab = document.querySelector('.tab-btn[data-tab="messages"]');
+  if (messagesTab) messagesTab.classList.toggle('hidden', !me.canMessage);
+  const adminTab = document.getElementById('admin-tab-btn');
+  if (adminTab) adminTab.classList.toggle('hidden', !me.isAdmin);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -80,65 +99,33 @@ function initTabs() {
 /* SIP softphone (SIP.js)                                                  */
 /* ---------------------------------------------------------------------- */
 
-const SIP_SETTINGS_KEY = 'ucm_sip_settings';
-
 let userAgent = null;
 let registerer = null;
 let activeSession = null;
 let callTimerInterval = null;
 let callStartedAt = null;
+// Provisioned by the server from the extension an admin assigned to this
+// account - nothing SIP-related is typed in or stored in this browser.
+let sipSettings = {};
 
-function loadSipSettings() {
-  try {
-    return JSON.parse(localStorage.getItem(SIP_SETTINGS_KEY)) || {};
-  } catch {
-    return {};
-  }
-}
-
-function saveSipSettings(settings) {
-  localStorage.setItem(SIP_SETTINGS_KEY, JSON.stringify(settings));
+async function fetchSipConfig() {
+  const res = await fetch('/api/sip-config');
+  if (!res.ok) throw new Error('Could not load your extension settings');
+  return res.json();
 }
 
 async function initPhone() {
-  const form = document.getElementById('sip-settings-form');
   const statusEl = document.getElementById('sip-settings-status');
 
-  let settings = loadSipSettings();
+  document.getElementById('account-name').textContent = me
+    ? `${me.displayName} (${me.username})`
+    : '—';
+  document.getElementById('account-messaging').textContent =
+    me && me.canMessage ? 'Enabled' : 'Not enabled for this account';
 
-  // First run: prefill from server-provided defaults (from .env), if any.
-  if (!settings.wssUrl) {
-    try {
-      const res = await fetch('/api/sip-config');
-      if (res.ok) {
-        const defaults = await res.json();
-        if (defaults.wssUrl) settings = defaults;
-      }
-    } catch {
-      /* ignore - fall back to empty form */
-    }
-  }
+  await connectSip(statusEl);
 
-  document.getElementById('sip-wss').value = settings.wssUrl || '';
-  document.getElementById('sip-domain').value = settings.domain || '';
-  document.getElementById('sip-extension').value = settings.extension || '';
-  document.getElementById('sip-password').value = settings.password || '';
-
-  if (settings.wssUrl && settings.extension && settings.password) {
-    registerSip(settings, statusEl);
-  }
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const newSettings = {
-      wssUrl: document.getElementById('sip-wss').value.trim(),
-      domain: document.getElementById('sip-domain').value.trim(),
-      extension: document.getElementById('sip-extension').value.trim(),
-      password: document.getElementById('sip-password').value,
-    };
-    saveSipSettings(newSettings);
-    registerSip(newSettings, statusEl);
-  });
+  document.getElementById('sip-reconnect-btn').addEventListener('click', () => connectSip(statusEl));
 
   document.getElementById('sip-unregister-btn').addEventListener('click', async () => {
     if (registerer) await registerer.unregister().catch(() => {});
@@ -149,6 +136,34 @@ async function initPhone() {
   });
 
   initDialpad();
+}
+
+async function connectSip(statusEl) {
+  try {
+    sipSettings = await fetchSipConfig();
+  } catch (err) {
+    statusEl.textContent = err.message;
+    setRegStatus(false, 'No extension assigned');
+    return;
+  }
+
+  document.getElementById('account-extension').textContent = sipSettings.extension || 'Not assigned';
+  document.getElementById('account-pbx').textContent = sipSettings.domain || 'Not configured';
+
+  if (!sipSettings.extension || !sipSettings.password) {
+    setRegStatus(false, 'No extension assigned');
+    statusEl.textContent =
+      'An administrator has not assigned you an extension yet. Calling is unavailable until they do.';
+    return;
+  }
+  if (!sipSettings.wssUrl || !sipSettings.domain) {
+    setRegStatus(false, 'PBX not configured');
+    statusEl.textContent =
+      'An administrator has not filled in the PBX settings yet (Admin tab).';
+    return;
+  }
+
+  registerSip(sipSettings, statusEl);
 }
 
 function setRegStatus(ok, text) {
@@ -261,8 +276,7 @@ function startCall(number) {
     alert('Not registered to the PBX yet. Check Settings.');
     return;
   }
-  const settings = loadSipSettings();
-  const target = SIP.UserAgent.makeURI(`sip:${number}@${settings.domain}`);
+  const target = SIP.UserAgent.makeURI(`sip:${number}@${sipSettings.domain}`);
   const inviter = new SIP.Inviter(userAgent, target, {
     sessionDescriptionHandlerOptions: { constraints: { audio: true, video: false } },
   });
@@ -532,6 +546,177 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Admin panel                                                             */
+/* ---------------------------------------------------------------------- */
+
+let editingUserId = null; // null while adding a new user
+
+function initAdmin() {
+  loadPbxSettings();
+  loadUsers();
+
+  document.getElementById('pbx-save-btn').addEventListener('click', savePbxSettings);
+  document.getElementById('add-user-btn').addEventListener('click', () => openUserDialog(null));
+  document.getElementById('user-cancel-btn').addEventListener('click', closeUserDialog);
+  document.getElementById('user-form').addEventListener('submit', submitUserForm);
+}
+
+async function loadPbxSettings() {
+  const res = await fetch('/api/admin/pbx');
+  if (!res.ok) return;
+  const pbx = await res.json();
+  document.getElementById('pbx-domain').value = pbx.domain || '';
+  document.getElementById('pbx-wss').value = pbx.wssUrl || '';
+  document.getElementById('pbx-port').value = pbx.sipPort || 5061;
+  document.getElementById('pbx-transport').value = pbx.sipTransport || 'tls';
+}
+
+async function savePbxSettings() {
+  const statusEl = document.getElementById('pbx-status');
+  const res = await fetch('/api/admin/pbx', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      domain: document.getElementById('pbx-domain').value.trim(),
+      wssUrl: document.getElementById('pbx-wss').value.trim(),
+      sipPort: document.getElementById('pbx-port').value.trim(),
+      sipTransport: document.getElementById('pbx-transport').value,
+    }),
+  });
+  statusEl.textContent = res.ok
+    ? 'Saved. Users pick this up next time they sign in or reconnect.'
+    : 'Could not save PBX settings.';
+}
+
+async function loadUsers() {
+  const container = document.getElementById('users-list');
+  const res = await fetch('/api/admin/users');
+  if (!res.ok) return;
+  const list = await res.json();
+
+  container.innerHTML = '';
+  list.forEach((user) => {
+    const row = document.createElement('div');
+    row.className = 'user-row';
+    const badges = [
+      user.role === 'admin' ? '<span class="badge admin">Admin</span>' : '',
+      user.canMessage ? '<span class="badge">Texts</span>' : '',
+      user.active ? '' : '<span class="badge off">Disabled</span>',
+    ].join('');
+    row.innerHTML = `
+      <div class="user-main">
+        <div class="user-name">${escapeHtml(user.displayName)} ${badges}</div>
+        <div class="user-sub">${escapeHtml(user.username)} · ${
+          user.extension ? `ext ${escapeHtml(user.extension)}` : 'no extension'
+        }</div>
+      </div>`;
+
+    const actions = document.createElement('div');
+    actions.className = 'user-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'ghost-btn small';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => openUserDialog(user));
+    actions.appendChild(editBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'ghost-btn small danger';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => deleteUser(user));
+    actions.appendChild(deleteBtn);
+
+    row.appendChild(actions);
+    container.appendChild(row);
+  });
+}
+
+async function openUserDialog(user) {
+  editingUserId = user ? user.id : null;
+  document.getElementById('user-dialog-title').textContent = user ? 'Edit user' : 'Add user';
+  document.getElementById('user-form-error').classList.add('hidden');
+
+  document.getElementById('user-username').value = user ? user.username : '';
+  document.getElementById('user-username').disabled = Boolean(user); // usernames are stable
+  document.getElementById('user-display-name').value = user ? user.displayName : '';
+  document.getElementById('user-password').value = '';
+  document.getElementById('user-password-label').firstChild.textContent = user
+    ? 'New password (leave blank to keep current)'
+    : 'Password';
+  document.getElementById('user-can-message').checked = user ? user.canMessage : false;
+  document.getElementById('user-is-admin').checked = user ? user.role === 'admin' : false;
+  document.getElementById('user-extension').value = user ? user.extension : '';
+
+  // The SIP secret isn't in the list payload; fetch it only when editing.
+  const sipPasswordInput = document.getElementById('user-sip-password');
+  sipPasswordInput.value = '';
+  if (user) {
+    const res = await fetch(`/api/admin/users/${user.id}/sip`);
+    if (res.ok) sipPasswordInput.value = (await res.json()).sipPassword || '';
+  }
+
+  document.getElementById('user-dialog').classList.remove('hidden');
+}
+
+function closeUserDialog() {
+  document.getElementById('user-dialog').classList.add('hidden');
+  editingUserId = null;
+}
+
+async function submitUserForm(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById('user-form-error');
+  errorEl.classList.add('hidden');
+
+  const payload = {
+    displayName: document.getElementById('user-display-name').value.trim(),
+    role: document.getElementById('user-is-admin').checked ? 'admin' : 'user',
+    canMessage: document.getElementById('user-can-message').checked,
+    extension: document.getElementById('user-extension').value.trim(),
+    sipPassword: document.getElementById('user-sip-password').value,
+  };
+  const password = document.getElementById('user-password').value;
+
+  let res;
+  if (editingUserId) {
+    if (password) payload.password = password;
+    res = await fetch(`/api/admin/users/${editingUserId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } else {
+    payload.username = document.getElementById('user-username').value.trim();
+    payload.password = password;
+    res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  if (res.ok) {
+    closeUserDialog();
+    loadUsers();
+  } else {
+    const { error } = await res.json().catch(() => ({}));
+    errorEl.textContent = error || 'Could not save user';
+    errorEl.classList.remove('hidden');
+  }
+}
+
+async function deleteUser(user) {
+  if (!confirm(`Delete ${user.displayName}? They'll lose access immediately.`)) return;
+  const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+  if (res.ok) {
+    loadUsers();
+  } else {
+    const { error } = await res.json().catch(() => ({}));
+    alert(error || 'Could not delete user');
+  }
 }
 
 /* ---------------------------------------------------------------------- */

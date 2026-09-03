@@ -93,23 +93,20 @@ Then `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.
 
 ## Configuring it
 
-**Settings tab, "Server URL"**: your backend's public URL (the same one you
-gave Telnyx for the webhook), e.g. `https://voip.example.com`. Unlike the
-browser app this isn't same-origin, so it has to be entered once.
+**Server URL** (on the sign-in screen): your backend's public URL (the same
+one you gave Telnyx for the webhook), e.g. `https://voip.example.com`. Unlike
+the browser app this isn't same-origin, so it has to be entered once.
 
-**Settings tab, SIP fields**: this is a *different* configuration surface
-from the web app's WSS/8089 settings, because this app isn't using WebRTC:
+**Sign in with your username and password.** There are no SIP fields to fill
+in: the server hands the app the extension an admin assigned to that account,
+along with the shared PBX host/port/transport, and it registers itself.
 
-- **SIP domain**: your UCM6301's hostname/IP - same value as the web app's
-  SIP domain field.
-- **Port / transport**: typically **5061 / TLS** (encrypted, recommended) or
-  **5060 / UDP or TCP** (plaintext, LAN-only). Confirm the port UCM6301 has
-  that transport listening on under **PBX Settings → SIP Settings**.
-- **Extension / password**: the same extension number and SIP secret you'd
-  use in the web app's Settings tab (**PBX Settings → Extensions →
-  (extension) → SIP/IAX Settings → Password**). You do *not* need to enable
-  the extension's WebRTC toggle for this app - that's only for the browser
-  softphone. A normal SIP extension works as-is.
+An admin configures all of it once in the web app's **Admin** tab:
+- **SIP port / transport** there is what this app uses - typically **5061 /
+  TLS**, or **5060 / UDP or TCP** on a trusted LAN. That's separate from the
+  WSS/8089 setting, which only the browser softphone uses.
+- The extension needs *no* WebRTC toggle for this app - a normal SIP
+  extension works as-is. WebRTC is only for the browser.
 - If you're off the UCM's LAN, you need the SIP port reachable the same way
   the web app's WSS port would need to be (port-forward or VPN) - this is a
   separate concern from the Telnyx messaging side, which just needs your

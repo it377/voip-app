@@ -9,9 +9,10 @@ A self-hosted, single-page web app that combines:
    via the Telnyx Messages API and receives inbound texts via a Telnyx
    webhook, pushing new messages to the browser live over WebSocket.
 
-It's one app, but the two halves barely touch: the browser talks to your PBX
-directly (SIP credentials never go through this server), and the server talks
-to Telnyx. The only thing tying them together is the UI and the login.
+Users sign in with their own username and password; an admin assigns each of
+them an extension on the UCM, and their softphone configures itself. The
+browser then talks to the PBX directly for calls, while the server talks to
+Telnyx for texts.
 
 ## 1. Local setup
 
@@ -28,13 +29,15 @@ Edit `.env`:
 
 | Variable | Where to get it |
 |---|---|
-| `APP_PASSWORD` | Pick a password for the app's login screen. |
 | `SESSION_SECRET` | `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Used **once**, on first run, to create the first admin account. Leave the password blank and a random one is generated and printed to the console. After that, users are managed in the app. |
 | `TELNYX_API_KEY` | [Telnyx Portal → API Keys](https://portal.telnyx.com/#/app/api-keys) |
 | `TELNYX_FROM_NUMBER` | The Telnyx number you're texting from, E.164 (`+15555550123`) |
 | `TELNYX_MESSAGING_PROFILE_ID` | [Telnyx Portal → Messaging → Messaging Profiles](https://portal.telnyx.com/#/app/messaging) — the profile your number is assigned to |
 | `TELNYX_PUBLIC_KEY` | Same messaging profile page, "Public Key" — used to verify inbound webhooks are really from Telnyx. Fill this in; see [Security notes](#security-notes). |
-| `SIP_WSS_URL`, `SIP_DOMAIN`, `SIP_EXTENSION`, `SIP_PASSWORD` | Optional defaults for the softphone — see part 2. You can also leave these blank and enter them in the browser's Settings tab instead. |
+
+There are no SIP settings in `.env` — PBX details and each user's extension are
+managed in the app's **Admin** tab and handed to clients at login (see part 2).
 
 Start it:
 
@@ -45,17 +48,46 @@ python app.py
 (`app.py` runs Flask's built-in dev server, which is fine for local use. For
 anything always-on, part 4 switches to gunicorn instead.)
 
-Open **http://localhost:3000**, log in with `APP_PASSWORD`, and you should see
-Phone / Messages / Settings tabs.
+Open **http://localhost:3000** and sign in with the admin account created on
+first run (see the console output). You'll see Phone / Messages / Settings
+plus an **Admin** tab.
+
+First thing to do there: fill in **PBX settings**, then add users and assign
+each one an extension.
 
 Sending a text won't require any tunnel — that's a normal outbound API call.
 Receiving one does (part 3).
 
 ## 2. Configuring the SIP connection against your UCM6301
 
-Do this in the app's **Settings** tab (or via the `SIP_*` env vars, which just
-pre-fill that form — SIP credentials are stored in the browser's
-`localStorage`, never on the server).
+Users don't configure anything. An admin sets this up once in the **Admin**
+tab, and every client (browser or Android) pulls its settings at login.
+
+**Admin tab → PBX settings** (shared by everyone, one UCM6301):
+
+- **SIP domain / PBX host** — your UCM's hostname or IP.
+- **WebSocket URL** — `wss://<ucm-host>:8089/ws`, used by the browser
+  softphone (WebRTC).
+- **SIP port / transport** — used by the Android app, which speaks plain SIP
+  rather than WebRTC. Typically `5061` + TLS, or `5060` + UDP/TCP.
+
+**Admin tab → Users**: add a person, and assign them an extension that already
+exists on your UCM plus that extension's SIP secret. That's the whole
+provisioning step — they sign in with their username and password and their
+softphone registers itself.
+
+Per user you can also set:
+- **Can send/read texts** — the Telnyx inbox is shared (there's one number), so
+  this decides who sees it. People without it get the phone half only.
+- **Administrator** — can manage users and PBX settings. The app won't let you
+  remove or demote the last active admin, so you can't lock yourself out.
+
+Accounts live in `data/accounts.json`. Login passwords are hashed (PBKDF2);
+extension SIP secrets can't be hashed, because clients must present the real
+secret to register with the PBX — so that file is written `chmod 600` and
+should be treated as a credential store (see Security notes).
+
+### Where these values come from on the UCM6301
 
 You need four things:
 
@@ -105,7 +137,7 @@ this list:
    be on the same network — this is unrelated to the Telnyx tunnel in part 3,
    which is a completely separate, outbound-only connection.
 5. **Wrong domain vs. IP** — if the UCM's cert is issued for a hostname, using
-   the bare IP in `SIP_DOMAIN` will both fail cert validation *and* may not
+   the bare IP as the PBX host will both fail cert validation *and* may not
    match the SIP domain the PBX expects. Use the same hostname everywhere.
 6. **Check the PBX's own logs** — **Maintenance → System Events** (or
    **PBX Settings → SIP Settings → SIP Debug**) will show the REGISTER
@@ -202,12 +234,11 @@ webhook backend), just harden pieces of it:
   process/worker (see the note in `app.py`). Python's built-in `sqlite3`
   would be a drop-in-ish swap behind the same `store.py` functions, buys you
   real querying/search, and would let you scale past one worker later.
-- **Auth**: one shared password for the whole app is weak (no per-user
-  accounts, no 2FA, one leaked password = full access to your calls and
-  texts). If this is going to be reachable from the public internet
-  long-term rather than behind a VPN, consider real accounts + TOTP, or at
-  least putting it behind something like Tailscale so it's not
-  internet-facing at all.
+- **Auth**: there are now real per-user accounts with hashed passwords and
+  an admin role, but still no 2FA and no rate limiting on login attempts. If
+  this is reachable from the public internet long-term, TOTP and a login
+  throttle are the next things worth adding - or put it behind something like
+  Tailscale so it isn't internet-facing at all.
 - **Mobile**: the UI is responsive (see the phone-tab layout and the mobile
   breakpoint in `styles.css`), but browsers restrict background mic/audio
   access — a backgrounded mobile tab won't reliably ring for incoming calls.
@@ -224,6 +255,12 @@ webhook backend), just harden pieces of it:
   (Telnyx can't provide it) — it's protected instead by verifying Telnyx's
   ed25519 webhook signature. Set `TELNYX_PUBLIC_KEY` before deploying
   publicly, or anyone who finds the URL can inject fake "received" messages.
-- SIP credentials live only in the browser's `localStorage`, never on this
-  server or in `.env` if you choose not to set the `SIP_*` defaults.
+- Login passwords are hashed with PBKDF2-SHA256. Extension SIP secrets are
+  **not** hashed and cannot be: a client has to present the real secret to
+  register with the PBX, so the server must hand it back. They live in
+  `data/accounts.json`, which is written with `chmod 600` - back it up and
+  guard it like any credential store. Encrypting it at rest with a key from
+  `.env` is a sensible follow-up.
+- Each client only ever receives its own extension's secret; the admin user
+  list never includes password hashes or other people's SIP secrets.
 - Don't commit your real `.env` — `.gitignore` already excludes it.

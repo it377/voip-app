@@ -3,7 +3,6 @@ package com.ucmtelnyx.app
 import android.Manifest
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Build
 import android.os.Bundle
@@ -29,7 +28,6 @@ import com.ucmtelnyx.app.ui.LoginScreen
 import com.ucmtelnyx.app.ui.MessagesScreen
 import com.ucmtelnyx.app.ui.PhoneScreen
 import com.ucmtelnyx.app.ui.SettingsScreen
-import com.ucmtelnyx.app.ui.SipFormState
 import com.ucmtelnyx.app.ui.UcmTelnyxTheme
 import kotlinx.coroutines.launch
 import okhttp3.WebSocket
@@ -107,14 +105,17 @@ private fun AppRoot(
     onCloseWebSocket: () -> Unit,
 ) {
     var backendUrl by remember { mutableStateOf(prefs.backendUrl) }
-    var loggedIn by remember { mutableStateOf<Boolean?>(null) }
+    var me by remember { mutableStateOf<Me?>(null) }
+    var checkedSession by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(Tab.PHONE) }
     val scope = rememberCoroutineScope()
+
+    var sipConfig by remember { mutableStateOf<SipConfig?>(null) }
+    var sipStatus by remember { mutableStateOf("") }
 
     var conversations by remember { mutableStateOf(listOf<ConversationSummary>()) }
     var openConversation by remember { mutableStateOf<String?>(null) }
     var openMessages by remember { mutableStateOf(listOf<Message>()) }
-    var sipStatus by remember { mutableStateOf("") }
 
     fun refreshConversations() {
         scope.launch {
@@ -129,109 +130,153 @@ private fun AppRoot(
         }
     }
 
-    LaunchedEffect(Unit) {
-        loggedIn = backend.session()
+    // Pull the assigned extension and register with it - the whole point of the
+    // admin-provisioned setup: nothing typed in on the device.
+    fun connectSip() {
+        scope.launch {
+            backend.sipConfig()
+                .onSuccess { config ->
+                    sipConfig = config
+                    when {
+                        config.extension.isBlank() || config.password.isBlank() ->
+                            sipStatus = "An administrator has not assigned you an extension yet."
+                        config.domain.isBlank() ->
+                            sipStatus = "An administrator has not filled in the PBX settings yet."
+                        else -> {
+                            sipStatus = ""
+                            sipManager?.register(
+                                config.domain,
+                                config.sipPort,
+                                config.sipTransport,
+                                config.extension,
+                                config.password,
+                            )
+                        }
+                    }
+                }
+                .onFailure { sipStatus = it.message ?: "Could not load your extension settings" }
+        }
     }
 
-    LaunchedEffect(loggedIn) {
-        if (loggedIn == true) {
+    LaunchedEffect(Unit) {
+        me = backend.session()
+        checkedSession = true
+    }
+
+    LaunchedEffect(me, sipManager) {
+        if (me != null && sipManager != null) connectSip()
+    }
+
+    LaunchedEffect(me) {
+        val current = me
+        if (current != null && current.canMessage) {
             refreshConversations()
             onOpenWebSocket { message ->
                 refreshConversations()
                 val other = if (message.direction == "outbound") message.to else message.fromNumber
                 if (other == openConversation) openMessages = openMessages + message
             }
-            if (prefs.hasSipSettings()) {
-                sipManager?.register(prefs.sipDomain, prefs.sipPort, prefs.sipTransport, prefs.sipExtension, prefs.sipPassword)
-            }
         } else {
             onCloseWebSocket()
         }
     }
 
-    when (loggedIn) {
-        null -> Unit // still checking session
-        false -> LoginScreen(
+    // Texting is opt-in per account, so the Messages tab only exists for users
+    // an admin enabled it for (the server enforces this too).
+    val tabs = buildList {
+        add(Tab.PHONE)
+        if (me?.canMessage == true) add(Tab.MESSAGES)
+        add(Tab.SETTINGS)
+    }
+    // Derive rather than assign: writing state during composition can loop.
+    val activeTab = if (tab in tabs) tab else Tab.PHONE
+
+    when {
+        !checkedSession -> Unit // still checking for an existing session
+        me == null -> LoginScreen(
             backendUrl = backendUrl,
             onBackendUrlChange = { backendUrl = it; prefs.backendUrl = it; backend.updateBaseUrl(it) },
-            onLogin = { password -> backend.login(password) },
-            onLoggedIn = { loggedIn = true },
+            onLogin = { username, password ->
+                backend.login(username, password).map { user -> me = user }
+            },
+            onLoggedIn = { },
         )
-        true -> Scaffold(
+        else -> Scaffold(
             bottomBar = {
                 NavigationBar {
-                    NavigationBarItem(
-                        selected = tab == Tab.PHONE,
-                        onClick = { tab = Tab.PHONE },
-                        icon = { Icon(Icons.Filled.Call, contentDescription = "Phone") },
-                        label = { Text("Phone") },
-                    )
-                    NavigationBarItem(
-                        selected = tab == Tab.MESSAGES,
-                        onClick = { tab = Tab.MESSAGES },
-                        icon = { Icon(Icons.Filled.Chat, contentDescription = "Messages") },
-                        label = { Text("Messages") },
-                    )
-                    NavigationBarItem(
-                        selected = tab == Tab.SETTINGS,
-                        onClick = { tab = Tab.SETTINGS },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
-                    )
+                    tabs.forEach { entry ->
+                        NavigationBarItem(
+                            selected = activeTab == entry,
+                            onClick = { tab = entry },
+                            icon = {
+                                when (entry) {
+                                    Tab.PHONE -> Icon(Icons.Filled.Call, contentDescription = "Phone")
+                                    Tab.MESSAGES -> Icon(Icons.Filled.Chat, contentDescription = "Messages")
+                                    Tab.SETTINGS -> Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                                }
+                            },
+                            label = {
+                                Text(
+                                    when (entry) {
+                                        Tab.PHONE -> "Phone"
+                                        Tab.MESSAGES -> "Messages"
+                                        Tab.SETTINGS -> "Settings"
+                                    }
+                                )
+                            },
+                        )
+                    }
                 }
             },
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
-            when (tab) {
-                Tab.PHONE -> {
-                    val regStatus by (sipManager?.regStatus?.collectAsStateWithLifecycle()
-                        ?: remember { mutableStateOf(RegStatus.UNREGISTERED) })
-                    val callState by (sipManager?.callState?.collectAsStateWithLifecycle()
-                        ?: remember { mutableStateOf(CallUiState()) })
-                    PhoneScreen(
-                        regStatus = regStatus,
-                        callState = callState,
-                        onCall = { number -> sipManager?.call(number) },
-                        onAnswer = { sipManager?.answer() },
-                        onDecline = { sipManager?.decline() },
-                        onHangup = { sipManager?.hangup() },
-                        onMute = { sipManager?.toggleMute() },
-                        onHold = { sipManager?.toggleHold() },
-                        onDtmf = { digit -> sipManager?.sendDtmf(digit) },
+                when (activeTab) {
+                    Tab.PHONE -> {
+                        val regStatus by (sipManager?.regStatus?.collectAsStateWithLifecycle()
+                            ?: remember { mutableStateOf(RegStatus.UNREGISTERED) })
+                        val callState by (sipManager?.callState?.collectAsStateWithLifecycle()
+                            ?: remember { mutableStateOf(CallUiState()) })
+                        PhoneScreen(
+                            regStatus = regStatus,
+                            callState = callState,
+                            onCall = { number -> sipManager?.call(number) },
+                            onAnswer = { sipManager?.answer() },
+                            onDecline = { sipManager?.decline() },
+                            onHangup = { sipManager?.hangup() },
+                            onMute = { sipManager?.toggleMute() },
+                            onHold = { sipManager?.toggleHold() },
+                            onDtmf = { digit -> sipManager?.sendDtmf(digit) },
+                        )
+                    }
+                    Tab.MESSAGES -> MessagesScreen(
+                        conversations = conversations,
+                        openConversation = openConversation,
+                        openMessages = openMessages,
+                        onOpenConversation = { number -> openThread(number) },
+                        onBack = { openConversation = null },
+                        onNewConversation = { number -> openThread(number) },
+                        onSend = { to, text -> scope.launch { backend.sendMessage(to, text) } },
+                    )
+                    Tab.SETTINGS -> SettingsScreen(
+                        me = me,
+                        sipConfig = sipConfig,
+                        statusText = sipStatus,
+                        onReconnect = { connectSip() },
+                        onUnregister = { sipManager?.unregister() },
+                        onLogout = {
+                            scope.launch {
+                                backend.logout()
+                                sipManager?.unregister()
+                                onCloseWebSocket()
+                                me = null
+                                sipConfig = null
+                                conversations = emptyList()
+                                openConversation = null
+                                openMessages = emptyList()
+                            }
+                        },
                     )
                 }
-                Tab.MESSAGES -> MessagesScreen(
-                    conversations = conversations,
-                    openConversation = openConversation,
-                    openMessages = openMessages,
-                    onOpenConversation = { number -> openThread(number) },
-                    onBack = { openConversation = null },
-                    onNewConversation = { number -> openThread(number) },
-                    onSend = { to, text ->
-                        scope.launch { backend.sendMessage(to, text) }
-                    },
-                )
-                Tab.SETTINGS -> SettingsScreen(
-                    initial = SipFormState(
-                        domain = prefs.sipDomain,
-                        port = prefs.sipPort.toString(),
-                        transport = prefs.sipTransport,
-                        extension = prefs.sipExtension,
-                        password = prefs.sipPassword,
-                    ),
-                    onSave = { form ->
-                        prefs.sipDomain = form.domain
-                        prefs.sipPort = form.port.toIntOrNull() ?: 5061
-                        prefs.sipTransport = form.transport
-                        prefs.sipExtension = form.extension
-                        prefs.sipPassword = form.password
-                        sipManager?.register(prefs.sipDomain, prefs.sipPort, prefs.sipTransport, prefs.sipExtension, prefs.sipPassword)
-                        sipStatus = "Registering…"
-                    },
-                    onUnregister = { sipManager?.unregister(); sipStatus = "Unregistered" },
-                    statusText = sipStatus,
-                )
-            }
             }
         }
     }

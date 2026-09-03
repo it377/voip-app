@@ -6,93 +6,68 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.ucmtelnyx.app.Me
+import com.ucmtelnyx.app.SipConfig
 
-data class SipFormState(
-    var domain: String,
-    var port: String,
-    var transport: String,
-    var extension: String,
-    var password: String,
-)
-
+/**
+ * Read-only: the extension comes from whatever an administrator assigned to
+ * this account, so there is nothing to type in here any more.
+ */
 @Composable
 fun SettingsScreen(
-    initial: SipFormState,
-    onSave: (SipFormState) -> Unit,
-    onUnregister: () -> Unit,
+    me: Me?,
+    sipConfig: SipConfig?,
     statusText: String,
+    onReconnect: () -> Unit,
+    onUnregister: () -> Unit,
+    onLogout: () -> Unit,
 ) {
-    var form by remember { mutableStateOf(initial) }
-
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("SIP / PBX connection", style = MaterialTheme.typography.titleLarge, color = AppText)
+        Text("Your account", style = MaterialTheme.typography.titleLarge, color = AppText)
+
+        InfoRow("Signed in as", me?.let { "${it.displayName} (${it.username})" } ?: "—")
+        InfoRow("Extension", sipConfig?.extension?.takeIf { it.isNotBlank() } ?: "Not assigned")
+        InfoRow("PBX", sipConfig?.domain?.takeIf { it.isNotBlank() } ?: "Not configured")
+        InfoRow(
+            "Transport",
+            sipConfig?.let { "${it.sipTransport.uppercase()} : ${it.sipPort}" } ?: "—",
+        )
+        InfoRow("Texting", if (me?.canMessage == true) "Enabled" else "Not enabled")
+
         Text(
-            "Native SIP registration - a different port/transport than the browser app's " +
-                "WebRTC (WSS) settings. Typically port 5061 with TLS, or 5060 with UDP/TCP.",
+            "Your extension is assigned by an administrator - there's nothing to configure here.",
             color = AppTextDim,
             style = MaterialTheme.typography.bodySmall,
         )
 
-        OutlinedTextField(
-            value = form.domain,
-            onValueChange = { form = form.copy(domain = it) },
-            label = { Text("SIP domain / PBX host") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = form.port,
-            onValueChange = { form = form.copy(port = it.filter { c -> c.isDigit() }) },
-            label = { Text("Port") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        TransportSelector(form.transport) { form = form.copy(transport = it) }
-        OutlinedTextField(
-            value = form.extension,
-            onValueChange = { form = form.copy(extension = it) },
-            label = { Text("Extension") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = form.password,
-            onValueChange = { form = form.copy(password = it) },
-            label = { Text("SIP password") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = { onSave(form) },
-                colors = ButtonDefaults.buttonColors(containerColor = AppAccent),
-                modifier = Modifier.weight(1f),
-            ) { Text("Save & Register") }
-            OutlinedButton(onClick = onUnregister) { Text("Unregister") }
-        }
-
         if (statusText.isNotBlank()) {
             Text(statusText, color = AppTextDim, style = MaterialTheme.typography.bodySmall)
         }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onReconnect,
+                colors = ButtonDefaults.buttonColors(containerColor = AppAccent),
+                modifier = Modifier.weight(1f),
+            ) { Text("Reconnect") }
+            OutlinedButton(onClick = onUnregister) { Text("Unregister") }
+        }
+
+        OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
     }
 }
 
 @Composable
-private fun TransportSelector(selected: String, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("tls", "tcp", "udp").forEach { option ->
-            FilterChip(
-                selected = selected == option,
-                onClick = { onSelect(option) },
-                label = { Text(option.uppercase()) },
-            )
-        }
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, color = AppTextDim, style = MaterialTheme.typography.bodyMedium)
+        Text(value, color = AppText, style = MaterialTheme.typography.bodyMedium)
     }
 }

@@ -48,34 +48,77 @@ class BackendClient(private var baseUrl: String) {
 
     private fun url(path: String) = "$baseUrl$path"
 
-    suspend fun login(password: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun login(username: String, password: String): Result<Me> = withContext(Dispatchers.IO) {
         try {
-            val body = moshi.adapter(Map::class.java).toJson(mapOf("password" to password))
+            val body = moshi.adapter(Map::class.java)
+                .toJson(mapOf("username" to username, "password" to password))
             val request = Request.Builder()
                 .url(url("/api/login"))
                 .post(body.toRequestBody(jsonMedia))
                 .build()
             client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) Result.success(Unit)
-                else Result.failure(BackendException("Login failed (${response.code})"))
+                val json = response.body?.string() ?: "{}"
+                val parsed = moshi.adapter(LoginResponse::class.java).fromJson(json)
+                if (!response.isSuccessful || parsed?.user == null) {
+                    Result.failure(
+                        BackendException(parsed?.error ?: "Sign in failed (${response.code})")
+                    )
+                } else {
+                    Result.success(parsed.user)
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun session(): Boolean = withContext(Dispatchers.IO) {
+    /** Returns the signed-in user, or null if this device has no valid session. */
+    suspend fun session(): Me? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url("/api/session")).build()
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext false
-                val json = response.body?.string() ?: return@withContext false
-                val map = moshi.adapter(Map::class.java).fromJson(json)
-                map?.get("authenticated") == true
+                if (!response.isSuccessful) return@withContext null
+                val json = response.body?.string() ?: return@withContext null
+                val parsed = moshi.adapter(SessionResponse::class.java).fromJson(json)
+                if (parsed?.authenticated == true) parsed.user else null
             }
         } catch (e: Exception) {
-            false
+            null
         }
+    }
+
+    /**
+     * The extension an admin assigned to this account, merged with the shared PBX
+     * settings - this is what replaces typing SIP details into the app.
+     */
+    suspend fun sipConfig(): Result<SipConfig> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder().url(url("/api/sip-config")).build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        BackendException("Could not load your extension (${response.code})")
+                    )
+                }
+                val json = response.body?.string() ?: "{}"
+                val config = moshi.adapter(SipConfig::class.java).fromJson(json)
+                    ?: return@withContext Result.failure(BackendException("Malformed SIP config"))
+                Result.success(config)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun logout() = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url(url("/api/logout"))
+                .post("".toRequestBody(jsonMedia))
+                .build()
+            client.newCall(request).execute().close()
+        }
+        Unit
     }
 
     suspend fun listConversations(): List<ConversationSummary> = withContext(Dispatchers.IO) {
